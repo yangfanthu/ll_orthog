@@ -1,10 +1,12 @@
+import os
 import argparse
 import datetime
 import gym
 import numpy as np
 import itertools
 import torch
-from sac import SAC
+import robel
+from sac import LLSAC
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
 
@@ -44,99 +46,126 @@ parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 10000000)')
 parser.add_argument('--cuda', action="store_true",
                     help='run on CUDA (default: False)')
+
+parser.add_argument("--training-episodes", type=int, default=int(3e4), 
+                    help="num of maximum episodes for training each tasks")
+parser.add_argument("--shared-feature-dim", type=int, default=512,
+                    help="the feature dim of the shared feature in the policy network")
 args = parser.parse_args()
 
+env_name_list = ['DClawTurnFixedD0-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD3-v0','DClawTurnFixedD4-v0']
+num_tasks = len(env_name_list)
+memory_list = []
+for i in range(len(env_name_list)):
+    memory_list.append(ReplayMemory(args.replay_size, args.seed))
+
+# action space of different tasks is assumed to be the same
 # Environment
 # env = NormalizedActions(gym.make(args.env_name))
-env = gym.make(args.env_name)
+env = gym.make(env_name_list[0])
 env.seed(args.seed)
 env.action_space.seed(args.seed)
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
-# Agent
-agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
 #Tesnorboard
-writer = SummaryWriter('runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name,
-                                                             args.policy, "autotune" if args.automatic_entropy_tuning else ""))
+writer = SummaryWriter('runs/{}_SAC_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                                                             args.policy))
+# save directory
+if not os.path.exists('saved_models'):
+    os.system('mkdir saved_models')
+outdir = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+outdir = os.path.join('./saved_models', outdir)
+os.system('mkdir ' + outdir)
+with open(outdir+'/setting.txt','w') as f:
+    f.writelines("lifelong learning on only turning tasks\n")
+    for each_arg, value in args.__dict__.items():
+        f.writelines(each_arg + " : " + str(value)+"\n")
+
+# Agent
+agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 
 # Memory
-memory = ReplayMemory(args.replay_size, args.seed)
+# memory = ReplayMemory(args.replay_size, args.seed)
 
 # Training Loop
 total_numsteps = 0
 updates = 0
-
-for i_episode in itertools.count(1):
-    episode_reward = 0
-    episode_steps = 0
-    done = False
+for task_id, env_name in enumerate(env_name_list):
+    env = gym.make(env_name)
     state = env.reset()
+    agent.set_task_id(task_id)
+    for i_episode in range(args.training_episodes):
+        episode_reward = 0
+        episode_steps = 0
+        done = False
+        state = env.reset()
 
-    while not done:
-        if args.start_steps > total_numsteps:
-            action = env.action_space.sample()  # Sample random action
-        else:
-            action = agent.select_action(state)  # Sample action from policy
+        while not done:
+            if args.start_steps > total_numsteps:
+                action = env.action_space.sample()  # Sample random action
+            else:
+                action = agent.select_action(state, task_id=task_id)  # Sample action from policy
 
-        if len(memory) > args.batch_size:
-            # Number of updates per step in environment
-            for i in range(args.updates_per_step):
-                # Update parameters of all the networks
-                critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory, args.batch_size, updates)
+            if len(memory_list[task_id]) > args.batch_size:
+                # Number of updates per step in environment
+                for i in range(args.updates_per_step):
+                    # Update parameters of all the networks
+                    critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory_list, args.batch_size, updates)
 
-                writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-                writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-                writer.add_scalar('loss/policy', policy_loss, updates)
-                writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-                writer.add_scalar('entropy_temprature/alpha', alpha, updates)
-                updates += 1
+                    writer.add_scalar('loss/critic_1', critic_1_loss, updates)
+                    writer.add_scalar('loss/critic_2', critic_2_loss, updates)
+                    writer.add_scalar('loss/policy', policy_loss, updates)
+                    writer.add_scalar('loss/entropy_loss', ent_loss, updates)
+                    writer.add_scalar('entropy_temprature/alpha', alpha, updates)
+                    updates += 1
 
-        next_state, reward, done, _ = env.step(action) # Step
-        episode_steps += 1
-        total_numsteps += 1
-        episode_reward += reward
+            next_state, reward, done, _ = env.step(action) # Step
+            episode_steps += 1
+            total_numsteps += 1
+            episode_reward += reward
 
-        # Ignore the "done" signal if it comes from hitting the time horizon.
-        # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-        mask = 1 if episode_steps == env._max_episode_steps else float(not done)
+            # Ignore the "done" signal if it comes from hitting the time horizon.
+            # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
+            mask = 1 if episode_steps == env._max_episode_steps else float(not done)
 
-        memory.push(state, action, reward, next_state, mask) # Append transition to memory
+            memory_list[task_id].push(state, action, reward, next_state, mask) # Append transition to memory
 
-        state = next_state
+            state = next_state
 
-    if total_numsteps > args.num_steps:
-        break
+        if total_numsteps > args.num_steps:
+            break
 
-    writer.add_scalar('reward/train', episode_reward, i_episode)
-    print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
+        writer.add_scalar('reward/train', episode_reward, i_episode)
+        print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
 
-    if i_episode % 10 == 0 and args.eval is True:
-        avg_reward = 0.
-        episodes = 10
-        for _  in range(episodes):
-            state = env.reset()
-            episode_reward = 0
-            done = False
-            while not done:
-                action = agent.select_action(state, evaluate=True)
+        if i_episode % 10 == 0 and args.eval is True:
+            avg_reward = 0.
+            episodes = 10
+            for _  in range(episodes):
+                state = env.reset()
+                episode_reward = 0
+                done = False
+                while not done:
+                    action = agent.select_action(state, task_id = task_id, evaluate=True)
 
-                next_state, reward, done, _ = env.step(action)
-                episode_reward += reward
-
-
-                state = next_state
-            avg_reward += episode_reward
-        avg_reward /= episodes
+                    next_state, reward, done, _ = env.step(action)
+                    episode_reward += reward
 
 
-        writer.add_scalar('avg_reward/test', avg_reward, i_episode)
+                    state = next_state
+                avg_reward += episode_reward
+            avg_reward /= episodes
 
-        print("----------------------------------------")
-        print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-        print("----------------------------------------")
 
-env.close()
+            writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
+            print("----------------------------------------")
+            print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
+            print("----------------------------------------")
+        if i_episode % 50 == 0:
+            agent.save_model(suffix=total_numsteps)
+    agent.save_model(suffix=total_numsteps)
+    env.close()
