@@ -47,13 +47,14 @@ parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
 parser.add_argument('--cuda', action="store_true",
                     help='run on CUDA (default: False)')
 
-parser.add_argument("--training-episodes", type=int, default=int(3e4), 
+parser.add_argument("--training-episodes", type=int, default=int(5e3), 
+# parser.add_argument("--training-episodes", type=int, default=int(1e2), 
                     help="num of maximum episodes for training each tasks")
 parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 args = parser.parse_args()
 
-env_name_list = ['DClawTurnFixedD0-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD3-v0','DClawTurnFixedD4-v0']
+env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
 num_tasks = len(env_name_list)
 memory_list = []
 for i in range(len(env_name_list)):
@@ -92,11 +93,14 @@ agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args,
 
 # Training Loop
 total_numsteps = 0
+current_task_numsteps = 0
 updates = 0
 for task_id, env_name in enumerate(env_name_list):
+    print("the current training env is {}".format(env_name))
     env = gym.make(env_name)
     state = env.reset()
     agent.set_task_id(task_id)
+    best_reward = -99999
     for i_episode in range(args.training_episodes):
         episode_reward = 0
         episode_steps = 0
@@ -104,7 +108,7 @@ for task_id, env_name in enumerate(env_name_list):
         state = env.reset()
 
         while not done:
-            if args.start_steps > total_numsteps:
+            if args.start_steps > current_task_numsteps:
                 action = env.action_space.sample()  # Sample random action
             else:
                 action = agent.select_action(state, task_id=task_id)  # Sample action from policy
@@ -125,6 +129,7 @@ for task_id, env_name in enumerate(env_name_list):
             next_state, reward, done, _ = env.step(action) # Step
             episode_steps += 1
             total_numsteps += 1
+            current_task_numsteps += 1
             episode_reward += reward
 
             # Ignore the "done" signal if it comes from hitting the time horizon.
@@ -135,15 +140,16 @@ for task_id, env_name in enumerate(env_name_list):
 
             state = next_state
 
-        if total_numsteps > args.num_steps:
+        if current_task_numsteps > args.num_steps:
+            current_task_numsteps = 0
             break
+        if i_episode % 10 == 0:    
+            writer.add_scalars('reward/train', {env_name: episode_reward}, i_episode)
+            print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
 
-        writer.add_scalar('reward/train', episode_reward, i_episode)
-        print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps, episode_steps, round(episode_reward, 2)))
-
-        if i_episode % 10 == 0 and args.eval is True:
+        if i_episode % 30 == 0 and args.eval is True:
             avg_reward = 0.
-            episodes = 10
+            episodes = 3
             for _  in range(episodes):
                 state = env.reset()
                 episode_reward = 0
@@ -160,12 +166,18 @@ for task_id, env_name in enumerate(env_name_list):
             avg_reward /= episodes
 
 
-            writer.add_scalar('avg_reward/test', avg_reward, i_episode)
+            writer.add_scalars('avg_reward/test', {env_name: avg_reward}, i_episode)
 
             print("----------------------------------------")
             print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
             print("----------------------------------------")
+            if avg_reward > best_reward:
+                best_reward = avg_reward
+                agent.save_model(suffix=total_numsteps)
         if i_episode % 50 == 0:
             agent.save_model(suffix=total_numsteps)
+        # TODO: do we need to break in this way?
+        if avg_reward > 950:
+            break
     agent.save_model(suffix=total_numsteps)
     env.close()
