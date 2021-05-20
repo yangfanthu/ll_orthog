@@ -53,11 +53,11 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 args = parser.parse_args()
 
-env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
+env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
+
 num_tasks = len(env_name_list)
-memory_list = []
-for i in range(len(env_name_list)):
-    memory_list.append(ReplayMemory(args.replay_size, args.seed))
 
 # action space of different tasks is assumed to be the same
 # Environment
@@ -71,7 +71,12 @@ np.random.seed(args.seed)
 
 # Agent
 agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
-agent.policy.load_state_dict(torch.load('./saved_models/2021-05-06_18-00-51/actor_215000.ckpt'))
+# agent.policy.load_state_dict(torch.load('./saved_models/2021-05-07_11-32-16/actor_560160.ckpt')) # success one
+# agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_11-01-45/actor_238320.ckpt'))
+# agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
+agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-20_14-16-08/actor_206800.ckpt'))
+
+
 # Memory
 # memory = ReplayMemory(args.replay_size, args.seed)
 
@@ -83,6 +88,7 @@ test_episodes = 1
 for task_id, env_name in enumerate(env_name_list):
     env = gym.make(env_name)
     agent.set_task_id(task_id)
+    # agent.alpha = args.alpha
 
     avg_reward = 0.
     episodes = 1

@@ -257,7 +257,7 @@ class LLSAC(object):
                 wgt = torch.matmul(w, g.transpose(0,1))
                 a = gwt - wgt
                 u = torch.matmul(a, w)
-                tau = 0.5 * 2 / (np.linalg.norm(a, ord=1) + 1e-8)
+                tau = 0.5 * 2 / (torch.norm(a, p=1) + 1e-8)
                 tau = min(self.args.lr, tau)
                 y0 = w - tau * u
                 y1 = w - tau/2*torch.matmul(a,(w + y0))

@@ -218,6 +218,8 @@ class LLGaussianPolicy(nn.Module):
     def to(self, device):
         self.action_scale = self.action_scale.to(device)
         self.action_bias = self.action_bias.to(device)
+        for i in range(len(self.projections)):
+            self.projections[i] = self.projections[i].to(device)
         return super(LLGaussianPolicy, self).to(device)
     def zero_grad(self):
         self.single_zero_grad(self.shared_linear1.weight)        
@@ -245,7 +247,5 @@ if __name__ == "__main__":
     criterion = nn.MSELoss()
     loss = criterion(gt, action)
     loss.backward()
-    import pdb
-    pdb.set_trace()
 
     policy.zero_grad()

@@ -44,8 +44,10 @@ parser.add_argument('--target_update_interval', type=int, default=1, metavar='N'
                     help='Value target update per no. of updates per step (default: 1)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 10000000)')
-parser.add_argument('--cuda', action="store_true",
-                    help='run on CUDA (default: False)')
+parser.add_argument('--cuda', type=bool, default=True,
+                    help='run on CUDA (default: True)')
+# parser.add_argument('--cuda', action="store_true",
+#                     help='run on CUDA (default: False)')
 
 parser.add_argument("--training-episodes", type=int, default=int(5e3), 
 # parser.add_argument("--training-episodes", type=int, default=int(1e2), 
@@ -53,8 +55,11 @@ parser.add_argument("--training-episodes", type=int, default=int(5e3),
 parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 args = parser.parse_args()
-
-env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
+# env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
+# 
+env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
 num_tasks = len(env_name_list)
 memory_list = []
 for i in range(len(env_name_list)):
@@ -81,7 +86,8 @@ outdir = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 outdir = os.path.join('./saved_models', outdir)
 os.system('mkdir ' + outdir)
 with open(outdir+'/setting.txt','w') as f:
-    f.writelines("lifelong learning on only turning tasks\n")
+    f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
+    f.writelines("use reward 900 as threshold. to test why the first time failed while the second time succeeded\n")
     for each_arg, value in args.__dict__.items():
         f.writelines(each_arg + " : " + str(value)+"\n")
 
@@ -98,8 +104,11 @@ updates = 0
 for task_id, env_name in enumerate(env_name_list):
     print("the current training env is {}".format(env_name))
     env = gym.make(env_name)
+    env.seed(args.seed)
+    env.action_space.seed(args.seed)
     state = env.reset()
     agent.set_task_id(task_id)
+    agent.alpha = args.alpha
     best_reward = -99999
     for i_episode in range(args.training_episodes):
         episode_reward = 0
@@ -177,7 +186,11 @@ for task_id, env_name in enumerate(env_name_list):
         if i_episode % 50 == 0:
             agent.save_model(suffix=total_numsteps)
         # TODO: do we need to break in this way?
-        if avg_reward > 950:
-            break
+        if task_id <5:
+            if avg_reward > 2800:
+                break
+        else:
+            if avg_reward >5000:
+                break
     agent.save_model(suffix=total_numsteps)
     env.close()
