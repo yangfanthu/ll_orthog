@@ -57,9 +57,9 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
 args = parser.parse_args()
 # env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
 # 
-env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
-# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
-#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
+env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+                'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
 num_tasks = len(env_name_list)
 memory_list = []
 for i in range(len(env_name_list)):
@@ -87,7 +87,7 @@ outdir = os.path.join('./saved_models', outdir)
 os.system('mkdir ' + outdir)
 with open(outdir+'/setting.txt','w') as f:
     f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
-    f.writelines("use reward 900 as threshold. to test why the first time failed while the second time succeeded\n")
+    f.writelines("use episode 1500 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
     for each_arg, value in args.__dict__.items():
         f.writelines(each_arg + " : " + str(value)+"\n")
 
@@ -99,9 +99,10 @@ agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args,
 
 # Training Loop
 total_numsteps = 0
-current_task_numsteps = 0
+
 updates = 0
 for task_id, env_name in enumerate(env_name_list):
+    current_task_numsteps = 0
     print("the current training env is {}".format(env_name))
     env = gym.make(env_name)
     env.seed(args.seed)
@@ -187,10 +188,12 @@ for task_id, env_name in enumerate(env_name_list):
             agent.save_model(suffix=total_numsteps)
         # TODO: do we need to break in this way?
         if task_id <5:
-            if avg_reward > 2800:
+            # if avg_reward > 2800:
+            if avg_reward > 2800 and i_episode > 2000:
                 break
         else:
-            if avg_reward >5000:
+            # if avg_reward >5000:
+            if avg_reward >5000 and i_episode > 1500:
                 break
     agent.save_model(suffix=total_numsteps)
     env.close()

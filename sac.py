@@ -305,7 +305,9 @@ class LLSAC(object):
         if actor_path is None:
             actor_path = os.path.join(self.outdir, "actor_{}.ckpt".format(suffix))
         if critic_path is None:
-            critic_path = os.path.join(self.outdir, "critic_{}.ckpt".format(suffix))
+            # critic_path = os.path.join(self.outdir, "critic_{}.ckpt".format(suffix))
+            critic_path = os.path.join(self.outdir, "critic.ckpt".format(suffix))
+            # don't wanna save the critic
         print('Saving models to {} and {}'.format(actor_path, critic_path))
         torch.save(self.policy.state_dict(), actor_path)
         # torch.save(self.critic.state_dict(), critic_path)
