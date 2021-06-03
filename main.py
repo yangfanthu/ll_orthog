@@ -7,6 +7,8 @@ import itertools
 import torch
 import robel
 from sac import LLSAC
+from ewc import EWCSAC
+import random
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
 
@@ -54,12 +56,27 @@ parser.add_argument("--training-episodes", type=int, default=int(5e3),
                     help="num of maximum episodes for training each tasks")
 parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
+parser.add_argument("--action-noise-scale", type=float, default=0.)
+parser.add_argument("--algorithm", type=str, default='LL',
+                    help="LL or EWC")
+parser.add_argument('--ewc-gamma', type=float, default=1e-3,
+                    help =" the ewc temperature of the previous tasks parameters")
+
 args = parser.parse_args()
 # env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
+# env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0']
+
 # 
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
-env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
-                'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0', 'DClawGrabFixedFF1-v0']
+# env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0', 'DClawGrabFixedFF1-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
+env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
+
 num_tasks = len(env_name_list)
 memory_list = []
 for i in range(len(env_name_list)):
@@ -70,6 +87,7 @@ for i in range(len(env_name_list)):
 # env = NormalizedActions(gym.make(args.env_name))
 env = gym.make(env_name_list[0])
 env.seed(args.seed)
+random.seed(args.seed)
 env.action_space.seed(args.seed)
 
 torch.manual_seed(args.seed)
@@ -78,7 +96,7 @@ np.random.seed(args.seed)
 
 #Tesnorboard
 writer = SummaryWriter('runs/{}_SAC_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-                                                             args.policy))
+                                                             args.algorithm))
 # save directory
 if not os.path.exists('saved_models'):
     os.system('mkdir saved_models')
@@ -86,17 +104,53 @@ outdir = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 outdir = os.path.join('./saved_models', outdir)
 os.system('mkdir ' + outdir)
 with open(outdir+'/setting.txt','w') as f:
-    f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
-    f.writelines("use episode 1500 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
+    # f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
+    f.writelines("use episode 2800 and 5000 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
+    # f.writelines("remove alpha entropy loss for the previous tasks\n")
+    f.writelines("4 grab tasks without grab 1\n")
+    
     for each_arg, value in args.__dict__.items():
         f.writelines(each_arg + " : " + str(value)+"\n")
 
 # Agent
-agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
+if args.algorithm == "LL":
+    agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
+elif args.algorithm == "EWC":
+    agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
+# choose the model that is best for every task
+def test(agent):
+    fail_task_ids = []
+    for task_id, env_name in enumerate(env_name_list):
+        env = gym.make(env_name)
+        agent.set_task_id(task_id)
+        # agent.alpha = args.alpha
 
-# Memory
-# memory = ReplayMemory(args.replay_size, args.seed)
+        avg_reward = 0.
+        episodes = 1
+        for _  in range(episodes):
+            state = env.reset()
+            episode_reward = 0
+            done = False
+            while not done:
+                action = agent.select_action(state, task_id = task_id, evaluate=True)
 
+                next_state, reward, done, _ = env.step(action)
+                episode_reward += reward
+
+                state = next_state
+            avg_reward += episode_reward
+        avg_reward /= episodes
+
+        print("----------------------------------------")
+        print("Avg. Reward: {}".format(round(avg_reward, 2)))
+        print("----------------------------------------")
+        if "Turn" in env_name and avg_reward < 2800 * 0.7:
+            fail_task_ids.append(task_id)
+        elif "Grab" in env_name and avg_reward < 5000 * 0.7:
+            fail_task_ids.append(task_id)
+
+        env.close()
+    return fail_task_ids
 # Training Loop
 total_numsteps = 0
 
@@ -107,8 +161,11 @@ for task_id, env_name in enumerate(env_name_list):
     env = gym.make(env_name)
     env.seed(args.seed)
     env.action_space.seed(args.seed)
+    action_space_shape = env.action_space.shape
     state = env.reset()
     agent.set_task_id(task_id)
+    if task_id > 0 and args.algorithm == "EWC":
+        agent.remember_prev_policy()
     agent.alpha = args.alpha
     best_reward = -99999
     for i_episode in range(args.training_episodes):
@@ -136,7 +193,10 @@ for task_id, env_name in enumerate(env_name_list):
                     writer.add_scalar('entropy_temprature/alpha', alpha, updates)
                     updates += 1
 
-            next_state, reward, done, _ = env.step(action) # Step
+            noise = np.random.randn(action_space_shape[0])
+            noise = noise * args.action_noise_scale
+            input_action = action + noise
+            next_state, reward, done, _ = env.step(input_action) # Step
             episode_steps += 1
             total_numsteps += 1
             current_task_numsteps += 1
@@ -187,13 +247,47 @@ for task_id, env_name in enumerate(env_name_list):
         if i_episode % 50 == 0:
             agent.save_model(suffix=total_numsteps)
         # TODO: do we need to break in this way?
-        if task_id <5:
+        # if env_name != env_name_list[-1]:
+        #     if "Turn" in env_name:
+        #         # if avg_reward > 2800:
+        #         if avg_reward > 2800 and i_episode > 2000:
+        #             break
+        #     elif "Grab" in env_name:
+        #         # if avg_reward >5000:
+        #         if avg_reward > 5000 and i_episode > 1500:
+        #             break
+        #     else:
+        #         print("error")
+        # else:
+        #     fail_task_list = test(agent)
+        #     if "Turn" in env_name:
+        #         # if avg_reward > 2800:
+        #         if avg_reward > 2800 and i_episode > 2000:
+        #             if len(fail_task_list) == 0:
+        #                 break
+        #             else:
+        #                 prev_index = random.randint(0, len(fail_task_list) - 1)
+        #                 agent.update_parameters(memory_list, args.batch_size, updates, fail_task_list[prev_index])
+        #     elif "Grab" in env_name:
+        #         # if avg_reward >5000:
+        #         if avg_reward > 5000 and i_episode > 1500:
+        #             if len(fail_task_list) == 0:
+        #                 break
+        #             else:
+        #                 prev_index = random.randint(0, len(fail_task_list) - 1)
+        #                 agent.update_parameters(memory_list, args.batch_size, updates, fail_task_list[prev_index])
+        if "Turn" in env_name:
             # if avg_reward > 2800:
             if avg_reward > 2800 and i_episode > 2000:
                 break
-        else:
+        elif "Grab" in env_name:
             # if avg_reward >5000:
-            if avg_reward >5000 and i_episode > 1500:
+            if avg_reward > 5000 and i_episode > 2000:
                 break
+        else:
+            print("error")
+        
     agent.save_model(suffix=total_numsteps)
     env.close()
+
+

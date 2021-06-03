@@ -237,8 +237,82 @@ class LLGaussianPolicy(nn.Module):
             else:
                 p.grad.requires_grad_(False)
             p.grad.zero_()
+
+class EWCGaussianPolicy(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, num_tasks, shared_feature_dim=256, action_space=None):
+        super(EWCGaussianPolicy, self).__init__()
+        # TODO: check whether w should use bias here
+        self.shared_linear1 = nn.Linear(num_inputs, hidden_dim, bias=False)
+        self.shared_linear2 = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.shared_linear3 = nn.Linear(hidden_dim, shared_feature_dim, bias=False)
+
+        self.mean_linears = nn.ModuleList()
+        self.log_std_linears = nn.ModuleList()
+        for i in range(num_tasks):
+            self.mean_linears.append(nn.Linear(shared_feature_dim, num_actions))
+            self.log_std_linears.append(nn.Linear(shared_feature_dim, num_actions))
+
+        self.apply(weights_init_)
+
+        # action rescaling
+        if action_space is None:
+            self.action_scale = torch.tensor(1.)
+            self.action_bias = torch.tensor(0.)
+        else:
+            self.action_scale = torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.)
+            self.action_bias = torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.)
+
+    def forward(self, state, task_id):
+        x = F.relu(self.shared_linear1(state))
+        x = F.relu(self.shared_linear2(x))
+        x = F.relu(self.shared_linear3(x))
+
+        mean_linear = self.mean_linears[task_id]
+        log_std_linear = self.log_std_linears[task_id]
+        mean = mean_linear(x)
+        log_std = log_std_linear(x)
+
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def sample(self, state, task_id):
+        mean, log_std = self.forward(state, task_id)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        y_t = torch.tanh(x_t)
+        action = y_t * self.action_scale + self.action_bias
+        log_prob = normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log(self.action_scale * (1 - y_t.pow(2)) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        mean = torch.tanh(mean) * self.action_scale + self.action_bias
+        return action, log_prob, mean
+
+    def to(self, device):
+        self.action_scale = self.action_scale.to(device)
+        self.action_bias = self.action_bias.to(device)
+        return super(EWCGaussianPolicy, self).to(device)
+    def zero_grad(self):
+        self.single_zero_grad(self.shared_linear1.weight)        
+        self.single_zero_grad(self.shared_linear2.weight)
+        self.single_zero_grad(self.shared_linear3.weight)
+        for module in self.mean_linears:
+            self.single_zero_grad(module.weight)
+        for module in self.log_std_linears:
+            self.single_zero_grad(module.weight)
+
+    def single_zero_grad(self, p):
+        if p.grad is not None:
+            if p.grad.grad_fn is not None:
+                p.grad.detach_()
+            else:
+                p.grad.requires_grad_(False)
+            p.grad.zero_()
 if __name__ == "__main__":
-    policy = LLGaussianPolicy(num_inputs=1, num_actions=1, hidden_dim=256, num_tasks=4)
+    policy = EWCGaussianPolicy(num_inputs=1, num_actions=1, hidden_dim=256, num_tasks=4)
     input = np.array([[1],[2]], dtype=np.float32)
     input = torch.from_numpy(input)
     action, log_prob, mean = policy.sample(input,0)

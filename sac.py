@@ -190,7 +190,7 @@ class LLSAC(object):
             _, _, action = self.policy.sample(state, task_id)
         return action.detach().cpu().numpy()[0]
 
-    def update_parameters(self, memory_list, batch_size, updates):
+    def update_parameters(self, memory_list, batch_size, updates, previous_task_id=None):
         # Sample a batch from memory
         current_memory = memory_list[self.task_id]
         state_batch, action_batch, reward_batch, next_state_batch, mask_batch = current_memory.sample(batch_size=batch_size)
@@ -228,7 +228,8 @@ class LLSAC(object):
         policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean() # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
         #TODO: Can we remove this part
         if self.task_id > 0:
-            previous_task_id = random.randint(0, self.task_id)
+            if previous_task_id == None:
+                previous_task_id = random.randint(0, self.task_id)
             previous_memory = memory_list[previous_task_id]
             state_batch, action_batch, reward_batch, next_state_batch, mask_batch = previous_memory.sample(batch_size=batch_size)
             state_batch = torch.FloatTensor(state_batch).to(self.device)
@@ -243,7 +244,9 @@ class LLSAC(object):
             qf1_pi, qf2_pi = self.critics[previous_task_id](state_batch, previous_pi)
             min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
-            previous_policy_loss = ((self.alpha * previous_log_pi) - min_qf_pi).mean()
+            # previous_policy_loss = ((self.alpha * previous_log_pi) - min_qf_pi).mean()
+            previous_policy_loss = (- min_qf_pi).mean()
+
             total_loss = policy_loss + previous_policy_loss
 
             self.policy.zero_grad()
