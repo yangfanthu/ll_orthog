@@ -58,24 +58,21 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 parser.add_argument("--action-noise-scale", type=float, default=0.)
 parser.add_argument("--algorithm", type=str, default='LL',
-                    help="LL or EWC")
-parser.add_argument('--ewc-gamma', type=float, default=1e-3,
+                    help="LL or EWC or L2")
+parser.add_argument('--ewc-gamma', type=float, default=1e-2,
                     help =" the ewc temperature of the previous tasks parameters")
 
 args = parser.parse_args()
-# env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0','DClawTurnFixedD2-v0','DClawTurnFixedD0-v0','DClawTurnFixedD4-v0']
-# env_name_list = ['DClawTurnFixedD3-v0','DClawTurnFixedD1-v0']
 
-# 
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0']
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0', 'DClawGrabFixedFF1-v0']
 # env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0', 'DClawGrabFixedFF1-v0']
-# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
-#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF1-v0']
-env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
+env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+                'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
+# env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
 
 num_tasks = len(env_name_list)
 memory_list = []
@@ -107,7 +104,7 @@ with open(outdir+'/setting.txt','w') as f:
     # f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
     f.writelines("use episode 2800 and 5000 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
     # f.writelines("remove alpha entropy loss for the previous tasks\n")
-    f.writelines("4 grab tasks without grab 1\n")
+    # f.writelines("4 grab tasks without grab 1\n")
     
     for each_arg, value in args.__dict__.items():
         f.writelines(each_arg + " : " + str(value)+"\n")
@@ -115,7 +112,7 @@ with open(outdir+'/setting.txt','w') as f:
 # Agent
 if args.algorithm == "LL":
     agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
-elif args.algorithm == "EWC":
+elif args.algorithm == "EWC" or args.algorithm == "L2":
     agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 # choose the model that is best for every task
 def test(agent):
@@ -164,7 +161,7 @@ for task_id, env_name in enumerate(env_name_list):
     action_space_shape = env.action_space.shape
     state = env.reset()
     agent.set_task_id(task_id)
-    if task_id > 0 and args.algorithm == "EWC":
+    if task_id > 0 and (args.algorithm == "EWC" or args.algorithm == "L2"):
         agent.remember_prev_policy()
     agent.alpha = args.alpha
     best_reward = -99999
@@ -278,11 +275,11 @@ for task_id, env_name in enumerate(env_name_list):
         #                 agent.update_parameters(memory_list, args.batch_size, updates, fail_task_list[prev_index])
         if "Turn" in env_name:
             # if avg_reward > 2800:
-            if avg_reward > 2800 and i_episode > 2000:
+            if avg_reward > 2800 and i_episode > 3000:
                 break
         elif "Grab" in env_name:
             # if avg_reward >5000:
-            if avg_reward > 5000 and i_episode > 2000:
+            if avg_reward > 5000 and i_episode > 3500:
                 break
         else:
             print("error")

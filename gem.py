@@ -8,7 +8,7 @@ from utils import soft_update, hard_update
 from model import GaussianPolicy, EWCGaussianPolicy, QNetwork, DeterministicPolicy
 import random
 
-class EWCSAC(object):
+class GEMSAC(object):
     def __init__(self, num_inputs, action_space, num_tasks, args, outdir=None):
         
         self.args = args
