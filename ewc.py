@@ -7,6 +7,7 @@ from torch.optim import Adam
 from utils import soft_update, hard_update
 from model import GaussianPolicy, EWCGaussianPolicy, QNetwork, DeterministicPolicy
 import random
+import copy
 
 class EWCSAC(object):
     def __init__(self, num_inputs, action_space, num_tasks, args, outdir=None):
@@ -205,4 +206,5 @@ class EWCSAC(object):
     def set_task_id(self, task_id):
         self.task_id = task_id  
     def remember_prev_policy(self):
-        self.previous_policy.append(self.policy)
+        self.previous_policy.append(copy.deepcopy(self.policy))
+        # self.previous_policy.append(self.policy)

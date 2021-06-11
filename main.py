@@ -8,6 +8,7 @@ import torch
 import robel
 from sac import LLSAC
 from ewc import EWCSAC
+from gem import GEMSAC
 import random
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
@@ -58,9 +59,11 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 parser.add_argument("--action-noise-scale", type=float, default=0.)
 parser.add_argument("--algorithm", type=str, default='LL',
-                    help="LL or EWC or L2")
+                    help="LL or EWC or L2 or GEM")
 parser.add_argument('--ewc-gamma', type=float, default=1e-2,
                     help =" the ewc temperature of the previous tasks parameters")
+parser.add_argument('--learn-critic', type=bool, default=False,
+                    help='whether use lifelong leanring algorithm for critic learning')
 
 args = parser.parse_args()
 
@@ -102,9 +105,10 @@ outdir = os.path.join('./saved_models', outdir)
 os.system('mkdir ' + outdir)
 with open(outdir+'/setting.txt','w') as f:
     # f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
-    f.writelines("use episode 2800 and 5000 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
+    f.writelines("use episode 3000 and 5000 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
     # f.writelines("remove alpha entropy loss for the previous tasks\n")
     # f.writelines("4 grab tasks without grab 1\n")
+    # f.writelines("LL without addtional sample\n")
     
     for each_arg, value in args.__dict__.items():
         f.writelines(each_arg + " : " + str(value)+"\n")
@@ -114,6 +118,8 @@ if args.algorithm == "LL":
     agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 elif args.algorithm == "EWC" or args.algorithm == "L2":
     agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
+elif args.algorithm == "GEM":
+    agent = GEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 # choose the model that is best for every task
 def test(agent):
     fail_task_ids = []
@@ -216,7 +222,7 @@ for task_id, env_name in enumerate(env_name_list):
 
         if i_episode % 30 == 0 and args.eval is True:
             avg_reward = 0.
-            episodes = 3
+            episodes = 1
             for _  in range(episodes):
                 state = env.reset()
                 episode_reward = 0
@@ -275,11 +281,13 @@ for task_id, env_name in enumerate(env_name_list):
         #                 agent.update_parameters(memory_list, args.batch_size, updates, fail_task_list[prev_index])
         if "Turn" in env_name:
             # if avg_reward > 2800:
-            if avg_reward > 2800 and i_episode > 3000:
+            # if avg_reward > 3000 and i_episode > 3000:
+            if avg_reward > 3000 and i_episode > 1500:
                 break
         elif "Grab" in env_name:
             # if avg_reward >5000:
-            if avg_reward > 5000 and i_episode > 3500:
+            # if avg_reward > 5000 and i_episode > 3500:
+            if avg_reward > 5000 and i_episode > 1500:
                 break
         else:
             print("error")

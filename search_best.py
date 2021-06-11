@@ -6,6 +6,7 @@ import numpy as np
 import itertools
 import torch
 import robel
+import tqdm
 from sac import LLSAC
 from ewc import EWCSAC
 from gem import GEMSAC
@@ -92,41 +93,72 @@ elif args.algorithm == "GEM":
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-21_11-25-20/actor_1506640.ckpt')) #the successful one on 9 tasks
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-03_15-24-49/actor_657200.ckpt'))  # the successful one on 4 grasp tasks
-agent.policy.load_state_dict(torch.load('./saved_models/2021-06-10_16-52-48/actor_1473680.ckpt'))   # mine algorithm
-
-
-# agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-08_16-04-01/actor_2334800.ckpt'))   #gem
+policy_dir = './saved_models/2021-06-10_16-57-08'
+start_index = 1000000
+end_index = 4000000
+model_params = os.listdir(policy_dir)
+model_candidates = []
+for i, model_param in enumerate(model_params):
+    if "critic" in model_param or "setting" in model_param:
+        continue
+    temp = model_param.split('_')
+    temp = temp[1]
+    temp = temp.split('.')
+    temp = temp[0] 
+    index = int(temp)
+    if index > start_index and index < end_index:
+        path = os.path.join(policy_dir, model_param)
+        model_candidates.append(path)
+# agent.policy.load_state_dict(torch.load('./saved_models/2021-06-07_09-54-33/actor_2322160.ckpt'))  
 
 
 
 # Memory
 # memory = ReplayMemory(args.replay_size, args.seed)
-
+best_model = None
+best_reward = -9999999
+best_reward_list = []
 # Training Loop
-for task_id, env_name in enumerate(env_name_list):
-    env = gym.make(env_name)
-    agent.set_task_id(task_id)
-    # agent.alpha = args.alpha
+for model in tqdm.tqdm(model_candidates):
+    agent.policy.load_state_dict(torch.load(model))
+    reward_list = [] 
+    for task_id, env_name in enumerate(env_name_list):
+        env = gym.make(env_name)
+        agent.set_task_id(task_id)
+        # agent.alpha = args.alpha
 
-    avg_reward = 0.
-    episodes = 1
-    for _  in range(episodes):
-        state = env.reset()
-        episode_reward = 0
-        done = False
-        # env.render()
-        while not done:
-            action = agent.select_action(state, task_id = task_id, evaluate=True)
-
-            next_state, reward, done, _ = env.step(action)
-            episode_reward += reward
+        avg_reward = 0.
+        episodes = 1
+        for _  in range(episodes):
+            state = env.reset()
+            episode_reward = 0
+            done = False
             # env.render()
+            while not done:
+                action = agent.select_action(state, task_id = task_id, evaluate=True)
 
-            state = next_state
-        avg_reward += episode_reward
-    avg_reward /= episodes
+                next_state, reward, done, _ = env.step(action)
+                episode_reward += reward
+                # env.render()
 
-    print("----------------------------------------")
-    print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-    print("----------------------------------------")
-    env.close()
+                state = next_state
+            avg_reward += episode_reward
+        avg_reward /= episodes
+        reward_list.append(avg_reward)
+
+        # print("----------------------------------------")
+        # print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
+        # print("----------------------------------------")
+        env.close()
+    reward_list = np.array(reward_list)
+    print(best_reward)
+    # if (reward_list > 0).all(): # the basic requirement, all the reward should be positive
+    sum_reward = reward_list.sum()
+    if sum_reward > best_reward:
+        best_reward = sum_reward
+        best_reward_list = reward_list
+        best_model = model
+print("________________")
+print(best_reward_list)
+print(best_model)
+
