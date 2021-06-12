@@ -56,6 +56,8 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 parser.add_argument("--algorithm", type=str, default='LL',
                     help="LL or EWC")
+parser.add_argument('--learn-critic', type=bool, default=False,
+                    help='whether use lifelong leanring algorithm for critic learning')
 args = parser.parse_args()
 
 

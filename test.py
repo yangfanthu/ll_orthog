@@ -55,6 +55,8 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 parser.add_argument("--algorithm", type=str, default='LL',
                     help="LL or EWC")
+parser.add_argument('--learn-critic', type=bool, default=False,
+                    help='whether use lifelong leanring algorithm for critic learning')
 args = parser.parse_args()
 
 
@@ -92,7 +94,7 @@ elif args.algorithm == "GEM":
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-21_11-25-20/actor_1506640.ckpt')) #the successful one on 9 tasks
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-03_15-24-49/actor_657200.ckpt'))  # the successful one on 4 grasp tasks
-agent.policy.load_state_dict(torch.load('./saved_models/2021-06-10_16-52-48/actor_1473680.ckpt'))   # mine algorithm
+agent.policy.load_state_dict(torch.load('./saved_models/2021-06-11_16-11-54/actor_1244080.ckpt'))   # mine algorithm
 
 
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-08_16-04-01/actor_2334800.ckpt'))   #gem

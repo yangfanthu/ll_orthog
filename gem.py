@@ -77,6 +77,7 @@ class GEMSAC(object):
         self.alpha = args.alpha
         self.num_tasks = num_tasks
         self.outdir = outdir
+        self.margin = 0
 
         self.policy_type = args.policy
         self.target_update_interval = args.target_update_interval
@@ -89,9 +90,7 @@ class GEMSAC(object):
         if self.args.learn_critic:
             self.critic = LLQNetwork(num_inputs, action_space.shape[0], args.hidden_size, num_tasks=num_tasks).to(device=self.device)
             self.critic_target = LLQNetwork(num_inputs, action_space.shape[0], args.hidden_size, num_tasks=num_tasks).to(device=self.device)
-            self.first_critic_optim = Adam(self.critic.parameters(), lr = args.lr)
-            optim_critic_parameters = list(self.critic.linear3.parameters()) + list(self.critic.linear6.parameters())
-            self.critic_optim = Adam(optim_critic_parameters, lr = args.lr)
+            self.critic_optim = Adam(self.critic.parameters(), lr = args.lr)
 
             hard_update(self.critic, self.critic_target)
 
@@ -135,9 +134,8 @@ class GEMSAC(object):
                                            num_tasks=self.num_tasks,
                                            shared_feature_dim=args.shared_feature_dim,
                                            action_space=action_space).to(self.device)
-            optim_policy_parameters = list(self.policy.mean_linears.parameters()) + list(self.policy.log_std_linears.parameters())
-            self.first_policy_optim = Adam(self.policy.parameters(), lr=args.lr)
-            self.policy_optim = Adam(optim_policy_parameters, lr=args.lr)
+            # optim_policy_parameters = list(self.policy.mean_linears.parameters()) + list(self.policy.log_std_linears.parameters())
+            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
         else:
             self.alpha = 0
@@ -219,7 +217,8 @@ class GEMSAC(object):
                                 list(self.critic.linear2.parameters()) + \
                                 list(self.critic.linear4.parameters()) + \
                                 list(self.critic.linear5.parameters())
-                torch.autograd.grad(prev_qf_loss, shared_critic_parameters)
+                # torch.autograd.grad(prev_qf_loss, shared_critic_parameters)
+                prev_qf_loss.backward()
                 store_grad(shared_critic_parameters, self.critic_grads, self.critic_grad_dims, previous_task_id)
             self.critic.zero_grad()
             self.critic_optim.zero_grad()
@@ -242,9 +241,9 @@ class GEMSAC(object):
     
         if self.args.learn_critic:
             if self.task_id == 0:
-                self.first_critic_optim.zero_grad()
+                self.critic_optim.zero_grad()
                 qf_loss.backward()
-                self.first_critic_optim.step()
+                self.critic_optim.step()
             else:
                 self.critic_optim.step()
         else:
@@ -291,9 +290,9 @@ class GEMSAC(object):
                                     list(self.policy.shared_linear2.parameters()) + \
                                     list(self.policy.shared_linear3.parameters())
                 # shared_parameters = itertools.chain(self.policy.shared_linear1.parameters(), self.policy.shared_linear2.parameters(), self.policy.shared_linear3.parameters())
-                torch.autograd.grad(previous_policy_loss, shared_parameters)
+                previous_policy_loss.backward()
+                # torch.autograd.grad(previous_policy_loss, shared_parameters)
                 store_grad(shared_parameters, self.grads, self.grad_dims, previous_task_id)
-
 
 
             self.policy.zero_grad()
@@ -322,15 +321,12 @@ class GEMSAC(object):
             
             
         elif self.task_id == 0:
-            self.first_policy_optim.zero_grad()
+            self.policy_optim.zero_grad()
             policy_loss.backward()
 
         # self.policy_optim.zero_grad()
         # policy_loss.backward()
-        if self.task_id == 0:
-            self.first_policy_optim.step()
-        else:
-            self.policy_optim.step()
+        self.policy_optim.step()
 
 
         if self.automatic_entropy_tuning:
