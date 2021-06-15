@@ -66,9 +66,11 @@ args = parser.parse_args()
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0', 'DClawGrabFixedFF1-v0']
 # env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0', 'DClawGrabFixedFF1-v0']
-env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
-                'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
+# env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
+#                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
 # env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
+env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
+                'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
 
 num_tasks = len(env_name_list)
 
@@ -87,14 +89,14 @@ if args.algorithm == "LL":
     agent = LLSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
 elif args.algorithm == "EWC" or args.algorithm == "L2":
     agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
-elif args.algorithm == "GEM":
+elif args.algorithm == "GEM" or args.algorithm == "AGEM":
     agent = GEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-07_11-32-16/actor_560160.ckpt')) # success one
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_11-01-45/actor_238320.ckpt'))
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-21_11-25-20/actor_1506640.ckpt')) #the successful one on 9 tasks
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-03_15-24-49/actor_657200.ckpt'))  # the successful one on 4 grasp tasks
-agent.policy.load_state_dict(torch.load('./saved_models/2021-06-11_16-11-54/actor_1244080.ckpt'))   # mine algorithm
+agent.policy.load_state_dict(torch.load('./saved_models/2021-06-15_09-27-33/actor_336720.ckpt'))   # mine algorithm
 
 
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-08_16-04-01/actor_2334800.ckpt'))   #gem
