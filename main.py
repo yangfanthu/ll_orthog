@@ -10,6 +10,7 @@ from sac import LLSAC
 from ewc import EWCSAC
 from gem import GEMSAC
 from agem import AGEMSAC
+from er import ERSAC
 import random
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
@@ -60,14 +61,14 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 parser.add_argument("--action-noise-scale", type=float, default=0.)
 parser.add_argument("--algorithm", type=str, default='LL',
-                    help="LL or EWC or L2 or GEM or AGEM")
+                    help="LL or EWC or L2 or GEM or AGEM or ER")
 parser.add_argument('--ewc-gamma', type=float, default=1e-2,
                     help =" the ewc temperature of the previous tasks parameters")
 parser.add_argument('--learn-critic', type=bool, default=False,
                     help='whether use lifelong leanring algorithm for critic learning')
 
 args = parser.parse_args()
-
+args.cuda = True if args.cuda and torch.cuda.is_available() else False
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0']
@@ -124,6 +125,8 @@ elif args.algorithm == "GEM":
     agent = GEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 elif args.algorithm == "AGEM":
     agent = AGEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
+elif args.algorithm == "ER":
+    agent = ERSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 # choose the model that is best for every task
 def test(agent):
     fail_task_ids = []
