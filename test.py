@@ -6,9 +6,11 @@ import numpy as np
 import itertools
 import torch
 import robel
-from sac import LLSAC
+from sac import LLSAC, SAC
 from ewc import EWCSAC
 from gem import GEMSAC
+from apd import APDSAC
+from er import ERSAC
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
 
@@ -57,6 +59,8 @@ parser.add_argument("--algorithm", type=str, default='LL',
                     help="LL or EWC")
 parser.add_argument('--learn-critic', type=bool, default=False,
                     help='whether use lifelong leanring algorithm for critic learning')
+parser.add_argument("--bias-weight", type=float, default=1e-2)
+parser.add_argument("--diff-weight", type=float, default=3e-4)
 args = parser.parse_args()
 
 
@@ -91,12 +95,20 @@ elif args.algorithm == "EWC" or args.algorithm == "L2":
     agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
 elif args.algorithm == "GEM" or args.algorithm == "AGEM":
     agent = GEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
+elif args.algorithm == "ER":
+    agent = ERSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
+elif args.algorithm == "APD":
+    agent = APDSAC(env.observation_space.shape[0],env.action_space,args=args, outdir=None)
+    for i in range(len(env_name_list)):
+        agent.add_task()
+elif args.algorithm == "SAC":
+    agent = SAC(env.observation_space.shape[0], env.action_space, num_tasks, args, None)
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-07_11-32-16/actor_560160.ckpt')) # success one
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_11-01-45/actor_238320.ckpt'))
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-21_11-25-20/actor_1506640.ckpt')) #the successful one on 9 tasks
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-03_15-24-49/actor_657200.ckpt'))  # the successful one on 4 grasp tasks
-agent.policy.load_state_dict(torch.load('./saved_models/2021-06-15_16-06-10/actor_839280.ckpt'))   # mine algorithm
+agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-14_23-28-15/actor_763480.ckpt'))   # mine algorithm
 
 
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-08_16-04-01/actor_2334800.ckpt'))   #gem

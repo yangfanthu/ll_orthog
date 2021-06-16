@@ -6,7 +6,7 @@ import numpy as np
 import itertools
 import torch
 import robel
-from sac import LLSAC
+from sac import LLSAC, SAC
 from ewc import EWCSAC
 from gem import GEMSAC
 from agem import AGEMSAC
@@ -62,7 +62,7 @@ parser.add_argument("--shared-feature-dim", type=int, default=512,
                     help="the feature dim of the shared feature in the policy network")
 parser.add_argument("--action-noise-scale", type=float, default=0.)
 parser.add_argument("--algorithm", type=str, default='LL',
-                    help="LL or EWC or L2 or GEM or AGEM or ER")
+                    help="LL or EWC or L2 or GEM or AGEM or ER or SAC")
 parser.add_argument('--ewc-gamma', type=float, default=1e-2,
                     help =" the ewc temperature of the previous tasks parameters")
 parser.add_argument('--learn-critic', type=bool, default=False,
@@ -130,10 +130,9 @@ elif args.algorithm == "AGEM":
 elif args.algorithm == "ER":
     agent = ERSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 elif args.algorithm == "APD":
-    agent = APDSAC(env.observation_space.shape[0], 
-                env.action_space,
-                args=args,
-                outdir=outdir)
+    agent = APDSAC(env.observation_space.shape[0],env.action_space,args=args, outdir=outdir)
+elif args.algorithm == "SAC":
+    agent = SAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 # Training Loop
 total_numsteps = 0
 

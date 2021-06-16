@@ -7,9 +7,11 @@ import itertools
 import torch
 import robel
 import tqdm
-from sac import LLSAC
+from sac import LLSAC, SAC
 from ewc import EWCSAC
 from gem import GEMSAC
+from apd import APDSAC
+from er import ERSAC
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
 
@@ -92,8 +94,16 @@ elif args.algorithm == "EWC" or args.algorithm == "L2":
     agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
 elif args.algorithm == "GEM" or args.algorithm == "AGEM":
     agent = GEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
-policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-15_11-10-13'
-start_index = 1000000
+elif args.algorithm == "ER":
+    agent = ERSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
+elif args.algorithm == "APD":
+    agent = APDSAC(env.observation_space.shape[0],env.action_space,args=args, outdir=None)
+    for i in range(len(env_name_list)):
+        agent.add_task()
+elif args.algorithm == "SAC":
+    agent = SAC(env.observation_space.shape[0], env.action_space, num_tasks, args, None)
+policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-14_14-44-38'
+start_index = 700000
 end_index = 4000000
 model_params = os.listdir(policy_dir)
 model_candidates = []
