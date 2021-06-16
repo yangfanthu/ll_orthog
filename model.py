@@ -15,7 +15,35 @@ def weights_init_(m):
         torch.nn.init.xavier_uniform_(m.weight, gain=1)
         # torch.nn.init.constant_(m.bias, 0)
 
-
+class APDLinear(nn.Module):
+    def __init__(self, shared_info_dim):
+        super(APDLinear, self).__init__()
+        self.shared_info_dim = shared_info_dim
+        self.shared_weights = nn.Parameter(torch.zeros((shared_info_dim, shared_info_dim), requires_grad=True))
+        torch.nn.init.xavier_uniform_(self.shared_weights, gain=1)
+        self.tau_l = nn.ParameterList([])
+        self.tau_r = nn.ParameterList([])
+        self.bias = nn.ParameterList([])
+    def forward(self, x, task_id):
+        assert self.tau_l
+        assert self.tau_r
+        assert self.bias
+        weights = self.get_theta(task_id)
+        bias = self.bias[task_id]
+        return torch.matmul(x,weights.transpose(0,1)) + bias.squeeze(1)
+        
+    def add_task(self, in_dim, out_dim, device=torch.device("cpu")):
+        self.tau_l.append(nn.Parameter(torch.nn.init.xavier_uniform_(torch.zeros((out_dim, self.shared_info_dim),requires_grad=True), gain=1).to(device)))
+        self.tau_r.append(nn.Parameter(torch.nn.init.xavier_uniform_(torch.zeros((self.shared_info_dim, in_dim), requires_grad=True), gain=1).to(device)))
+        self.bias.append(nn.Parameter(torch.nn.init.constant_(torch.zeros((out_dim,1), requires_grad=True), 0).to(device)))
+    def get_theta(self, task_id):
+        weights = torch.matmul(self.tau_l[task_id], self.shared_weights)
+        weights = torch.matmul(weights, self.tau_r[task_id])
+        return weights
+    def get_bias(self, task_id):
+        return self.bias[task_id]
+    def num_tasks(self):
+        return len(self.bias)
 
 class QNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim):
@@ -327,6 +355,98 @@ class EWCGaussianPolicy(nn.Module):
             else:
                 p.grad.requires_grad_(False)
             p.grad.zero_()
+
+class APDGaussianPolicy(nn.Module):
+    def __init__(self, shared_info_dim):
+        super(APDGaussianPolicy, self).__init__()
+
+        self.linear1 = APDLinear(shared_info_dim)
+        self.linear2 = APDLinear(shared_info_dim)
+        self.mean_linear = APDLinear(shared_info_dim)
+        self.log_std_linear = APDLinear(shared_info_dim)
+
+        self.action_scale = []
+        self.action_bias = []
+        self.bias = []
+        self.prev_theta_1 = None
+        self.prev_theta_2 = None
+        self.prev_mean_theta = None
+        self.prev_log_std_theta = None
+        # self.apply(weights_init_)
+
+    def forward(self, state, task_id):
+        x = F.relu(self.linear1(state, task_id))
+        x = F.relu(self.linear2(x, task_id))
+        mean = self.mean_linear(x, task_id)
+        log_std = self.log_std_linear(x, task_id)
+        log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
+        return mean, log_std
+
+    def sample(self, state, task_id):
+        mean, log_std = self.forward(state, task_id)
+        std = log_std.exp()
+        normal = Normal(mean, std)
+        x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
+        y_t = torch.tanh(x_t)
+        action = y_t * self.action_scale[task_id] + self.action_bias[task_id]
+        log_prob = normal.log_prob(x_t)
+        # Enforcing Action Bound
+        log_prob -= torch.log(self.action_scale[task_id] * (1 - y_t.pow(2)) + epsilon)
+        log_prob = log_prob.sum(1, keepdim=True)
+        mean = torch.tanh(mean) * self.action_scale[task_id] + self.action_bias[task_id]
+        return action, log_prob, mean
+
+    def to(self, device):
+        for i in range(len(self.action_scale)):
+            self.action_scale[i] = self.action_scale[i].to(device)
+            self.action_bias[i] = self.action_bias[i].to(device)
+        return super(APDGaussianPolicy, self).to(device)
+    def add_task(self, in_dim, out_dim, hidden_dim, action_space=None, device=torch.device('cpu')):
+        current_num_task = self.num_tasks()
+        if current_num_task >= 1:
+            with torch.no_grad():
+                self.prev_theta_1 = [self.linear1.get_theta(idx) for idx in range(current_num_task)]
+                self.prev_theta_2 = [self.linear2.get_theta(idx) for idx in range(current_num_task)]
+                self.prev_mean_theta = [self.mean_linear.get_theta(idx) for idx in range(current_num_task)]
+                self.prev_log_std_theta = [self.log_std_linear.get_theta(idx) for idx in range(current_num_task)]
+        self.linear1.add_task(in_dim, hidden_dim, device=device)
+        self.linear2.add_task(hidden_dim, hidden_dim, device=device)
+        self.mean_linear.add_task(hidden_dim, out_dim, device=device)
+        self.log_std_linear.add_task(hidden_dim, out_dim, device=device)
+        # action rescaling
+        if action_space is None:
+            self.action_scale.append(torch.tensor(1.).to(device))
+            self.action_bias.append(torch.tensor(0.).to(device))
+        else:
+            self.action_scale.append(torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.).to(device))
+            self.action_bias.append(torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.).to(device))
+    def num_tasks(self):
+        return self.linear1.num_tasks()
+    def get_bias_loss(self):
+        current_num_tasks = self.num_tasks()
+        bias_loss = 0
+        for i in range(current_num_tasks):
+            bias_loss += abs(self.linear1.get_bias(i)).sum()
+            bias_loss += abs(self.linear2.get_bias(i)).sum()
+            bias_loss += abs(self.mean_linear.get_bias(i)).sum()
+            bias_loss += abs(self.log_std_linear.get_bias(i)).sum()
+        return bias_loss
+    def get_diff_loss(self):
+        current_num_tasks = self.num_tasks()
+        diff_loss = 0
+        if current_num_tasks >= 2:
+            for i in range(current_num_tasks - 1):
+                theta_1 = self.linear1.get_theta(i)
+                theta_2 = self.linear2.get_theta(i)
+                mean_theta = self.mean_linear.get_theta(i)
+                log_std_theta = self.log_std_linear.get_theta(i)
+                diff_loss += pow((theta_1 - self.prev_theta_1[i]),2).sum()
+                diff_loss += pow((theta_2 - self.prev_theta_2[i]),2).sum()
+                diff_loss += pow((mean_theta - self.prev_mean_theta[i]),2).sum()
+                diff_loss += pow((log_std_theta - self.prev_log_std_theta[i]),2).sum()
+        return diff_loss
 if __name__ == "__main__":
     policy = EWCGaussianPolicy(num_inputs=1, num_actions=1, hidden_dim=256, num_tasks=4)
     input = np.array([[1],[2]], dtype=np.float32)

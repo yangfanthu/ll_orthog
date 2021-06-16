@@ -96,7 +96,7 @@ elif args.algorithm == "GEM" or args.algorithm == "AGEM":
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-21_11-25-20/actor_1506640.ckpt')) #the successful one on 9 tasks
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-03_15-24-49/actor_657200.ckpt'))  # the successful one on 4 grasp tasks
-agent.policy.load_state_dict(torch.load('./saved_models/2021-06-15_09-27-33/actor_336720.ckpt'))   # mine algorithm
+agent.policy.load_state_dict(torch.load('./saved_models/2021-06-15_16-06-10/actor_839280.ckpt'))   # mine algorithm
 
 
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-08_16-04-01/actor_2334800.ckpt'))   #gem

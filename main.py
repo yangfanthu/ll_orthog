@@ -11,6 +11,7 @@ from ewc import EWCSAC
 from gem import GEMSAC
 from agem import AGEMSAC
 from er import ERSAC
+from apd import APDSAC
 import random
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
@@ -66,7 +67,8 @@ parser.add_argument('--ewc-gamma', type=float, default=1e-2,
                     help =" the ewc temperature of the previous tasks parameters")
 parser.add_argument('--learn-critic', type=bool, default=False,
                     help='whether use lifelong leanring algorithm for critic learning')
-
+parser.add_argument("--bias-weight", type=float, default=1e-2)
+parser.add_argument("--diff-weight", type=float, default=3e-4)
 args = parser.parse_args()
 args.cuda = True if args.cuda and torch.cuda.is_available() else False
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0']
@@ -127,40 +129,11 @@ elif args.algorithm == "AGEM":
     agent = AGEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
 elif args.algorithm == "ER":
     agent = ERSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir)
-# choose the model that is best for every task
-def test(agent):
-    fail_task_ids = []
-    for task_id, env_name in enumerate(env_name_list):
-        env = gym.make(env_name)
-        agent.set_task_id(task_id)
-        # agent.alpha = args.alpha
-
-        avg_reward = 0.
-        episodes = 1
-        for _  in range(episodes):
-            state = env.reset()
-            episode_reward = 0
-            done = False
-            while not done:
-                action = agent.select_action(state, task_id = task_id, evaluate=True)
-
-                next_state, reward, done, _ = env.step(action)
-                episode_reward += reward
-
-                state = next_state
-            avg_reward += episode_reward
-        avg_reward /= episodes
-
-        print("----------------------------------------")
-        print("Avg. Reward: {}".format(round(avg_reward, 2)))
-        print("----------------------------------------")
-        if "Turn" in env_name and avg_reward < 2800 * 0.7:
-            fail_task_ids.append(task_id)
-        elif "Grab" in env_name and avg_reward < 5000 * 0.7:
-            fail_task_ids.append(task_id)
-
-        env.close()
-    return fail_task_ids
+elif args.algorithm == "APD":
+    agent = APDSAC(env.observation_space.shape[0], 
+                env.action_space,
+                args=args,
+                outdir=outdir)
 # Training Loop
 total_numsteps = 0
 
@@ -176,6 +149,12 @@ for task_id, env_name in enumerate(env_name_list):
     agent.set_task_id(task_id)
     if task_id > 0 and (args.algorithm == "EWC" or args.algorithm == "L2"):
         agent.remember_prev_policy()
+    if args.algorithm == "APD":
+        agent.add_task()
+    if args.algorithm == "APD" and task_id > 0:
+        #clean the buffer
+        memory_list[task_id-1].buffer = []
+        memory_list[task_id-1].position = 0
     agent.alpha = args.alpha
     best_reward = -99999
     for i_episode in range(args.training_episodes):
@@ -195,7 +174,6 @@ for task_id, env_name in enumerate(env_name_list):
                 for i in range(args.updates_per_step):
                     # Update parameters of all the networks
                     critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory_list, args.batch_size, updates)
-
                     writer.add_scalar('loss/critic_1', critic_1_loss, updates)
                     writer.add_scalar('loss/critic_2', critic_2_loss, updates)
                     writer.add_scalar('loss/policy', policy_loss, updates)

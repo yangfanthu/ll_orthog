@@ -92,8 +92,8 @@ elif args.algorithm == "EWC" or args.algorithm == "L2":
     agent = EWCSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
 elif args.algorithm == "GEM" or args.algorithm == "AGEM":
     agent = GEMSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
-policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-14_14-44-57'
-start_index = 700000
+policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-15_11-10-13'
+start_index = 1000000
 end_index = 4000000
 model_params = os.listdir(policy_dir)
 model_candidates = []
