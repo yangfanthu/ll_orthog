@@ -80,8 +80,11 @@ args.cuda = True if args.cuda and torch.cuda.is_available() else False
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
 # env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
-env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
-                'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
+# env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
+                # 'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
+env_name_list = ['DClawTurnFixedT9-v0','DClawTurnFixedT8-v0','DClawTurnFixedT7-v0','DClawTurnFixedT6-v0','DClawTurnFixedT5-v0',
+                'DClawTurnFixedT4-v0','DClawTurnFixedT3-v0','DClawTurnFixedT2-v0','DClawTurnFixedT1-v0','DClawTurnFixedT0-v0']
+
 num_tasks = len(env_name_list)
 memory_list = []
 for i in range(len(env_name_list)):
@@ -112,7 +115,7 @@ with open(outdir+'/setting.txt','w') as f:
     # f.writelines("lifelong learning on only turning tasks real only on turning tasks\n")
     f.writelines("use episode 1200 and 1500 as the basic requirement of breaking, to test whether we need to train long enough to the next task\n")
     # f.writelines("remove alpha entropy loss for the previous tasks\n")
-    # f.writelines("4 grab tasks without grab 1\n")
+    f.writelines("order b\n")
     # f.writelines("LL without addtional sample\n")
     
     for each_arg, value in args.__dict__.items():

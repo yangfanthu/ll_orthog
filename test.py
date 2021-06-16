@@ -73,8 +73,10 @@ args = parser.parse_args()
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
 # env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
-env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
-                'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
+# env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
+#                 'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
+env_name_list = ['DClawTurnFixedT9-v0','DClawTurnFixedT8-v0','DClawTurnFixedT7-v0','DClawTurnFixedT6-v0','DClawTurnFixedT5-v0',
+                'DClawTurnFixedT4-v0','DClawTurnFixedT3-v0','DClawTurnFixedT2-v0','DClawTurnFixedT1-v0','DClawTurnFixedT0-v0']
 
 num_tasks = len(env_name_list)
 
@@ -108,7 +110,7 @@ elif args.algorithm == "SAC":
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-05-19_13-47-09/actor_245520.ckpt'))
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-05-21_11-25-20/actor_1506640.ckpt')) #the successful one on 9 tasks
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-03_15-24-49/actor_657200.ckpt'))  # the successful one on 4 grasp tasks
-agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-14_23-28-15/actor_763480.ckpt'))   # mine algorithm
+agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-15_11-10-13/actor_1143120.ckpt'))   # mine algorithm
 
 
 # agent.policy.load_state_dict(torch.load('/home/evan/github/ll_orthog/saved_models/2021-06-08_16-04-01/actor_2334800.ckpt'))   #gem
