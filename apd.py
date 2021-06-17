@@ -46,12 +46,15 @@ class APDSAC(object):
         self.task_id = 0
 
     def select_action(self, state, task_id, evaluate=False):
-        state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
-        if evaluate is False:
-            action, _, _ = self.policy.sample(state, task_id)
+        if task_id > len(self.policy.action_bias) - 1:
+            return self.action_space.sample()
         else:
-            _, _, action = self.policy.sample(state, task_id)
-        return action.detach().cpu().numpy()[0]
+            state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+            if evaluate is False:
+                action, _, _ = self.policy.sample(state, task_id)
+            else:
+                _, _, action = self.policy.sample(state, task_id)
+            return action.detach().cpu().numpy()[0]
     
     def add_buffer(self, state, action, next_state, reward, done, task_id):
         self.replay_buffer[task_id].push(state, action, next_state, reward, done)

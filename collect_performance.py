@@ -14,6 +14,7 @@ from apd import APDSAC
 from er import ERSAC
 from torch.utils.tensorboard import SummaryWriter
 from replay_memory import ReplayMemory
+import pickle
 
 parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
 parser.add_argument('--env-name', default="HalfCheetah-v2",
@@ -100,15 +101,16 @@ elif args.algorithm == "ER":
     agent = ERSAC(env.observation_space.shape[0], env.action_space, num_tasks, args, outdir=None)
 elif args.algorithm == "APD":
     agent = APDSAC(env.observation_space.shape[0],env.action_space,args=args, outdir=None)
-    for i in range(len(env_name_list)):
-        agent.add_task()
+    # for i in range(len(env_name_list)):
+    #     agent.add_task()
 elif args.algorithm == "SAC":
     agent = SAC(env.observation_space.shape[0], env.action_space, num_tasks, args, None)
-policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-16_18-35-26'
-start_index = 750000
+policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-16_16-56-25'
+start_index = 0
 end_index = 4000000
 model_params = os.listdir(policy_dir)
 model_candidates = []
+model_path_dict = {}
 for i, model_param in enumerate(model_params):
     if "critic" in model_param or "setting" in model_param:
         continue
@@ -120,19 +122,33 @@ for i, model_param in enumerate(model_params):
     if index > start_index and index < end_index:
         path = os.path.join(policy_dir, model_param)
         model_candidates.append(path)
+        model_path_dict[index] = path
+model_indexes = list(model_path_dict.keys())
+model_indexes.sort()
 # agent.policy.load_state_dict(torch.load('./saved_models/2021-06-07_09-54-33/actor_2322160.ckpt'))  
 
 
 
 # Memory
 # memory = ReplayMemory(args.replay_size, args.seed)
-best_model = None
-best_reward = -9999999
-best_reward_list = []
+all_reward_list = []
+output_indexes = []
 # Training Loop
-for model in tqdm.tqdm(model_candidates):
-    agent.policy.load_state_dict(torch.load(model))
-    reward_list = [] 
+if args.algorithm == "APD":
+    agent.add_task()
+for i in tqdm.tqdm(range(0, len(model_indexes), 10)):
+    output_indexes.append(model_indexes[i])
+    model_path = model_path_dict[model_indexes[i]]
+    if args.algorithm == "APD":
+        try:
+            agent.policy.load_state_dict(torch.load(model_path))
+        except:
+            agent.add_task()
+            agent.policy.load_state_dict(torch.load(model_path))
+    else:
+        agent.policy.load_state_dict(torch.load(model_path))
+    reward_list = []
+    current_reward_list = [] 
     for task_id, env_name in enumerate(env_name_list):
         env = gym.make(env_name)
         agent.set_task_id(task_id)
@@ -155,21 +171,15 @@ for model in tqdm.tqdm(model_candidates):
                 state = next_state
             avg_reward += episode_reward
         avg_reward /= episodes
-        reward_list.append(avg_reward)
+        current_reward_list.append(avg_reward)
 
-        # print("----------------------------------------")
-        # print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
-        # print("----------------------------------------")
         env.close()
-    reward_list = np.array(reward_list)
-    print(best_reward)
-    # if (reward_list > 0).all(): # the basic requirement, all the reward should be positive
-    sum_reward = reward_list.sum()
-    if sum_reward > best_reward:
-        best_reward = sum_reward
-        best_reward_list = reward_list
-        best_model = model
-print("________________")
-print(best_reward_list)
-print(best_model)
+    current_reward_list = np.array(current_reward_list)
+    all_reward_list.append(current_reward_list)
+all_reward_list = np.array(all_reward_list)
+output_indexes = np.array(output_indexes)
+with open("{}_result.pkl".format(args.algorithm), 'wb') as f:
+    pickle.dump(all_reward_list, f)
+with open("{}_index.pkl".format(args.algorithm), 'wb') as f:
+    pickle.dump(output_indexes, f)
 

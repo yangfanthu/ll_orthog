@@ -4,7 +4,14 @@ import numpy as np
 import pdb
 import utils
 import model
+import pickle
 if __name__ == "__main__":
+    a = [1,2,3,4]
+    with open('a.pkl', 'wb') as f:
+        pickle.dump(a,f)
+    with open('a.pkl','rb') as f:
+        b = pickle.load(f)
+    print(b)
     # x = torch.tensor(1., requires_grad=True)
     # w = torch.tensor(2., requires_grad=True)
     # b = torch.tensor(3., requires_grad=True)
@@ -55,8 +62,7 @@ if __name__ == "__main__":
     # import pdb
     # pdb.set_trace()
 
-    model = nn.Linear(3,4)
-    a = torch.zeros(3,4)
-    model.weight = torch.nn.parameter.Parameter(a)
-    import pdb
-    pdb.set_trace()
+    # model = nn.Linear(3,4)
+    # a = torch.zeros(3,4)
+    # model.weight = torch.nn.parameter.Parameter(a)
+    
