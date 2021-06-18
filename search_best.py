@@ -74,8 +74,13 @@ args = parser.parse_args()
 # env_name_list = ['DClawTurnFixedF3-v0','DClawTurnFixedF1-v0','DClawTurnFixedF2-v0','DClawTurnFixedF0-v0','DClawTurnFixedF4-v0',
 #                 'DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
 # env_name_list = ['DClawGrabFixedFF2-v0','DClawGrabFixedFF3-v0', 'DClawGrabFixedFF4-v0', 'DClawGrabFixedFF0-v0']
-env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
-                'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
+# env_name_list = ['DClawTurnFixedT0-v0','DClawTurnFixedT1-v0','DClawTurnFixedT2-v0','DClawTurnFixedT3-v0','DClawTurnFixedT4-v0',
+#                 'DClawTurnFixedT5-v0','DClawTurnFixedT6-v0','DClawTurnFixedT7-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0']
+env_name_list = ['DClawTurnFixedT9-v0','DClawTurnFixedT8-v0','DClawTurnFixedT7-v0','DClawTurnFixedT6-v0','DClawTurnFixedT5-v0',
+                'DClawTurnFixedT4-v0','DClawTurnFixedT3-v0','DClawTurnFixedT2-v0','DClawTurnFixedT1-v0','DClawTurnFixedT0-v0']
+
+# env_name_list = ['DClawTurnFixedT3-v0','DClawTurnFixedT1-v0','DClawTurnFixedT7-v0','DClawTurnFixedT4-v0','DClawTurnFixedT2-v0',
+#                 'DClawTurnFixedT0-v0','DClawTurnFixedT8-v0','DClawTurnFixedT9-v0','DClawTurnFixedT5-v0','DClawTurnFixedT6-v0']
 
 num_tasks = len(env_name_list)
 
@@ -104,7 +109,7 @@ elif args.algorithm == "APD":
         agent.add_task()
 elif args.algorithm == "SAC":
     agent = SAC(env.observation_space.shape[0], env.action_space, num_tasks, args, None)
-policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-16_18-35-26'
+policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-17_09-22-49'
 start_index = 750000
 end_index = 4000000
 model_params = os.listdir(policy_dir)
