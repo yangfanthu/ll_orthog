@@ -109,7 +109,7 @@ elif args.algorithm == "APD":
         agent.add_task()
 elif args.algorithm == "SAC":
     agent = SAC(env.observation_space.shape[0], env.action_space, num_tasks, args, None)
-policy_dir = '/home/evan/github/ll_orthog/saved_models/2021-06-17_09-22-49'
+policy_dir = './saved_models/2021-06-18_14-13-51'
 start_index = 750000
 end_index = 4000000
 model_params = os.listdir(policy_dir)

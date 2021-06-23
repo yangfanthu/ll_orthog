@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
 from utils import soft_update, hard_update
-from model import GaussianPolicy, EWCGaussianPolicy, QNetwork, DeterministicPolicy
+from model import GaussianPolicy, EWCGaussianPolicy, QNetwork, EWCDeterministicPolicy
 import random
 
 class ERSAC(object):
@@ -57,7 +57,12 @@ class ERSAC(object):
         else:
             self.alpha = 0
             self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(num_inputs, action_space.shape[0], args.hidden_size, action_space).to(self.device)
+            self.policy = EWCDeterministicPolicy(num_inputs=num_inputs, 
+                                           num_actions=action_space.shape[0], 
+                                           hidden_dim=args.hidden_size,
+                                           num_tasks=self.num_tasks,
+                                           shared_feature_dim=args.shared_feature_dim,
+                                           action_space=action_space).to(self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
 
     def select_action(self, state, task_id, evaluate=False):

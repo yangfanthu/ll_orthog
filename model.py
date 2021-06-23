@@ -197,6 +197,205 @@ class DeterministicPolicy(nn.Module):
         self.noise = self.noise.to(device)
         return super(DeterministicPolicy, self).to(device)
 
+class CLOSDeterministicPolicy(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, num_tasks, shared_feature_dim=256, action_space=None):
+        super(CLOSDeterministicPolicy, self).__init__()
+        projections = utils.generate_projection_matrix(num_tasks=num_tasks, feature_dim=shared_feature_dim)
+        utils.unit_test_projection_matrices(projections)
+        self.projections = []
+        for i in range(len(projections)):
+            self.projections.append(torch.from_numpy(projections[i]).float())
+        self.shared_linear1 = nn.Linear(num_inputs, hidden_dim, bias=False)
+        self.shared_linear2 = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.shared_linear3 = nn.Linear(hidden_dim, shared_feature_dim, bias=False)
+
+        self.mean_linears = nn.ModuleList()
+        self.noise = torch.Tensor(num_actions)
+        for i in range(num_tasks):
+            self.mean_linears.append(nn.Linear(shared_feature_dim, num_actions))
+
+        self.apply(weights_init_)
+
+        # action rescaling
+        if action_space is None:
+            self.action_scale = 1.
+            self.action_bias = 0.
+        else:
+            self.action_scale = torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.)
+            self.action_bias = torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.)
+
+    def forward(self, state, task_id):
+        x = F.relu(self.shared_linear1(state))
+        x = F.relu(self.shared_linear2(x))
+        x = F.relu(self.shared_linear3(x))
+        projection = self.projections[task_id]
+        x = torch.matmul(x,projection)
+        mean = torch.tanh(self.mean_linears[task_id](x)) * self.action_scale + self.action_bias
+        return mean
+
+    def sample(self, state, task_id):
+        mean = self.forward(state, task_id)
+        noise = self.noise.normal_(0., std=0.1)
+        noise = noise.clamp(-0.25, 0.25)
+        action = mean + noise
+        return action, torch.tensor(0.), mean
+
+    def to(self, device):
+        self.action_scale = self.action_scale.to(device)
+        self.action_bias = self.action_bias.to(device)
+        self.noise = self.noise.to(device)
+        for i in range(len(self.projections)):
+            self.projections[i] = self.projections[i].to(device)
+        return super(CLOSDeterministicPolicy, self).to(device)
+    def zero_grad(self):
+        self.single_zero_grad(self.shared_linear1.weight)        
+        self.single_zero_grad(self.shared_linear2.weight)
+        self.single_zero_grad(self.shared_linear3.weight)
+        for module in self.mean_linears:
+            self.single_zero_grad(module.weight)
+
+    def single_zero_grad(self, p):
+        if p.grad is not None:
+            if p.grad.grad_fn is not None:
+                p.grad.detach_()
+            else:
+                p.grad.requires_grad_(False)
+            p.grad.zero_()
+class EWCDeterministicPolicy(nn.Module):
+    def __init__(self, num_inputs, num_actions, hidden_dim, num_tasks, shared_feature_dim=256, action_space=None):
+        super(EWCDeterministicPolicy, self).__init__()
+        self.shared_linear1 = nn.Linear(num_inputs, hidden_dim, bias=False)
+        self.shared_linear2 = nn.Linear(hidden_dim, hidden_dim, bias=False)
+        self.shared_linear3 = nn.Linear(hidden_dim, shared_feature_dim, bias=False)
+
+        self.mean_linears = nn.ModuleList()
+        self.noise = torch.Tensor(num_actions)
+        for i in range(num_tasks):
+            self.mean_linears.append(nn.Linear(shared_feature_dim, num_actions))
+
+        self.apply(weights_init_)
+
+        # action rescaling
+        if action_space is None:
+            self.action_scale = 1.
+            self.action_bias = 0.
+        else:
+            self.action_scale = torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.)
+            self.action_bias = torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.)
+
+    def forward(self, state, task_id):
+        x = F.relu(self.shared_linear1(state))
+        x = F.relu(self.shared_linear2(x))
+        x = F.relu(self.shared_linear3(x))
+        mean = torch.tanh(self.mean_linears[task_id](x)) * self.action_scale + self.action_bias
+        return mean
+
+    def sample(self, state, task_id):
+        mean = self.forward(state, task_id)
+        noise = self.noise.normal_(0., std=0.1)
+        noise = noise.clamp(-0.25, 0.25)
+        action = mean + noise
+        return action, torch.tensor(0.), mean
+
+    def to(self, device):
+        self.action_scale = self.action_scale.to(device)
+        self.action_bias = self.action_bias.to(device)
+        self.noise = self.noise.to(device)
+        return super(EWCDeterministicPolicy, self).to(device)
+    def zero_grad(self):
+        self.single_zero_grad(self.shared_linear1.weight)        
+        self.single_zero_grad(self.shared_linear2.weight)
+        self.single_zero_grad(self.shared_linear3.weight)
+        for module in self.mean_linears:
+            self.single_zero_grad(module.weight)
+
+    def single_zero_grad(self, p):
+        if p.grad is not None:
+            if p.grad.grad_fn is not None:
+                p.grad.detach_()
+            else:
+                p.grad.requires_grad_(False)
+            p.grad.zero_()
+
+class APDDeterministicPolicy(nn.Module):
+    def __init__(self, shared_info_dim, num_actions):
+        super(APDDeterministic, self).__init__()
+
+        self.linear1 = APDLinear(shared_info_dim)
+        self.linear2 = APDLinear(shared_info_dim)
+        self.mean_linear = APDLinear(shared_info_dim)
+        self.noise = torch.Tensor(num_actions)
+
+        self.action_scale = []
+        self.action_bias = []
+        self.bias = []
+        self.prev_theta_1 = None
+        self.prev_theta_2 = None
+        self.prev_mean_theta = None
+        # self.apply(weights_init_)
+
+    def forward(self, state, task_id):
+        x = F.relu(self.linear1(state, task_id))
+        x = F.relu(self.linear2(x, task_id))
+        mean = self.mean_linear(x, task_id)
+        return mean
+
+    def sample(self, state, task_id):
+        mean = self.forward(state, task_id)
+        noise = self.noise.normal_(0., std=0.1)
+        noise = noise.clamp(-0.25, 0.25)
+        action = mean + noise
+        return action, torch.tensor(0.), mean
+    def to(self, device):
+        for i in range(len(self.action_scale)):
+            self.action_scale[i] = self.action_scale[i].to(device)
+            self.action_bias[i] = self.action_bias[i].to(device)
+        return super(APDDeterministic, self).to(device)
+    def add_task(self, in_dim, out_dim, hidden_dim, action_space=None, device=torch.device('cpu')):
+        current_num_task = self.num_tasks()
+        if current_num_task >= 1:
+            with torch.no_grad():
+                self.prev_theta_1 = [self.linear1.get_theta(idx) for idx in range(current_num_task)]
+                self.prev_theta_2 = [self.linear2.get_theta(idx) for idx in range(current_num_task)]
+                self.prev_mean_theta = [self.mean_linear.get_theta(idx) for idx in range(current_num_task)]
+        self.linear1.add_task(in_dim, hidden_dim, device=device)
+        self.linear2.add_task(hidden_dim, hidden_dim, device=device)
+        self.mean_linear.add_task(hidden_dim, out_dim, device=device)
+        # action rescaling
+        if action_space is None:
+            self.action_scale.append(torch.tensor(1.).to(device))
+            self.action_bias.append(torch.tensor(0.).to(device))
+        else:
+            self.action_scale.append(torch.FloatTensor(
+                (action_space.high - action_space.low) / 2.).to(device))
+            self.action_bias.append(torch.FloatTensor(
+                (action_space.high + action_space.low) / 2.).to(device))
+    def num_tasks(self):
+        return self.linear1.num_tasks()
+    def get_bias_loss(self):
+        current_num_tasks = self.num_tasks()
+        bias_loss = 0
+        for i in range(current_num_tasks):
+            bias_loss += abs(self.linear1.get_bias(i)).sum()
+            bias_loss += abs(self.linear2.get_bias(i)).sum()
+            bias_loss += abs(self.mean_linear.get_bias(i)).sum()
+        return bias_loss
+    def get_diff_loss(self):
+        current_num_tasks = self.num_tasks()
+        diff_loss = 0
+        if current_num_tasks >= 2:
+            for i in range(current_num_tasks - 1):
+                theta_1 = self.linear1.get_theta(i)
+                theta_2 = self.linear2.get_theta(i)
+                mean_theta = self.mean_linear.get_theta(i)
+                diff_loss += pow((theta_1 - self.prev_theta_1[i]),2).sum()
+                diff_loss += pow((theta_2 - self.prev_theta_2[i]),2).sum()
+                diff_loss += pow((mean_theta - self.prev_mean_theta[i]),2).sum()
+        return diff_loss
 
 class LLGaussianPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, num_tasks, shared_feature_dim=256, action_space=None):
@@ -271,9 +470,6 @@ class LLGaussianPolicy(nn.Module):
         self.single_zero_grad(self.shared_linear3.weight)
         for module in self.mean_linears:
             self.single_zero_grad(module.weight)
-        for module in self.log_std_linears:
-            self.single_zero_grad(module.weight)
-
     def single_zero_grad(self, p):
         if p.grad is not None:
             if p.grad.grad_fn is not None:

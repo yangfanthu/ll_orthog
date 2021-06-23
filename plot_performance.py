@@ -3,7 +3,7 @@ import seaborn as sbn
 import numpy as np
 import pickle
 if __name__ == '__main__':
-    algorithm_name = "L2"
+    algorithm_name = "EWC"
     with open('{}_result.pkl'.format(algorithm_name), 'rb') as f:
         data = pickle.load(f)
     with open("{}_index.pkl".format(algorithm_name), 'rb') as f:
@@ -14,8 +14,8 @@ if __name__ == '__main__':
     sbn.set()
     handles = []
     legend_names = []
-    plt.xlabel("Step")
-    plt.ylabel("Reward")
+    # plt.xlabel("Step")
+    # plt.ylabel("Reward")
     plt.ylim([-1000, 2000])
     for i in range(data.shape[0]):
         handle, = plt.plot(index[:48], data[i,:48])

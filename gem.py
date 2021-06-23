@@ -6,7 +6,7 @@ from torch.nn import parameter
 import torch.nn.functional as F
 from torch.optim import Adam
 from utils import soft_update, hard_update
-from model import EWCGaussianPolicy, QNetwork, DeterministicPolicy, LLQNetwork
+from model import EWCDeterministicPolicy, EWCGaussianPolicy, QNetwork, LLQNetwork
 import random
 import quadprog
 import itertools
@@ -140,7 +140,12 @@ class GEMSAC(object):
         else:
             self.alpha = 0
             self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(num_inputs, action_space.shape[0], args.hidden_size, action_space).to(self.device)
+            self.policy = EWCDeterministicPolicy(num_inputs=num_inputs, 
+                                           num_actions=action_space.shape[0], 
+                                           hidden_dim=args.hidden_size,
+                                           num_tasks=self.num_tasks,
+                                           shared_feature_dim=args.shared_feature_dim,
+                                           action_space=action_space).to(self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
         shared_parameters = list(self.policy.shared_linear1.parameters()) + \
                                 list(self.policy.shared_linear2.parameters()) + \

@@ -6,7 +6,7 @@ from torch.nn import parameter
 import torch.nn.functional as F
 from torch.optim import Adam
 from utils import soft_update, hard_update
-from model import APDGaussianPolicy, QNetwork
+from model import APDGaussianPolicy, QNetwork, APDDeterministicPolicy
 import random
 import utils
 from replay_memory import ReplayMemory
@@ -41,8 +41,13 @@ class APDSAC(object):
         self.automatic_entropy_tuning = args.automatic_entropy_tuning
 
         self.device = torch.device("cuda" if args.cuda else "cpu")
-
-        self.policy = APDGaussianPolicy(shared_info_dim=self.shared_info_dim).to(self.device)
+        if self.policy_type == "Gaussian":
+            self.policy = APDGaussianPolicy(shared_info_dim=self.shared_info_dim).to(self.device)
+        else:
+            self.alpha = 0
+            self.automatic_entropy_tuning = False
+            self.policy = APDDeterministicPolicy(shared_info_dim=self.shared_info_dim, num_actions=action_space.shape[0]).to(self.device)
+        else:
         self.task_id = 0
 
     def select_action(self, state, task_id, evaluate=False):
